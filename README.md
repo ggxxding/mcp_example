@@ -26,4 +26,5 @@ source .venv/bin/activate
 
 # 安装依赖
 uv add "mcp[cli]" httpx
+uv add openai
 ```
