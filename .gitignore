@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+history/*
+!history/chat_history_20260305_155050.md
