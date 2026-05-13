@@ -117,12 +117,12 @@ def get_supported_states() -> str:
 def main():
     # 从命令行读取 transport 和用户问题，运行示例 Agent
     if len(sys.argv) < 2:
-        print("默认以 STDIO 方式启动 weather MCP 服务器")
+        print("默认以 STDIO 方式启动 weather MCP 服务，HTTP方式启动请执行uv run agent_weather.py http")
         mcp.run(transport="stdio")
     elif sys.argv[1] == "http":
         mcp.run(transport="streamable-http")
     else:
-        print("用法: uv run agent_weather.py http")
+        print("参数错误，用法: uv run agent_weather.py http")
         sys.exit(1)
 
 if __name__ == "__main__":

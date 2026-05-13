@@ -19,7 +19,7 @@ BASE_URL = "http://192.168.200.23:11434/v1"
 MODEL_NAME = "qwen3.5:35b"
 
 # Weather MCP 服务 HTTP 端点
-# 请确保 weather.py 已经以 HTTP 模式运行，例如：python weather.py
+# 请确保 weather.py 已经以 HTTP 模式运行
 WEATHER_HTTP_ENDPOINT = "http://127.0.0.1:8000/mcp"
 
 
@@ -129,7 +129,7 @@ class MCPWeatherAgent:
             full_history.append({"role": msg["role"], "content": msg["content"]})
 
         step = 1
-
+        # 对话循环，直到模型不再调用工具为止
         while True:
             print(f"\n========================== 第 {step} 轮模型调用 ==========================")
             print("\n[当前对话消息]：\n")
@@ -158,6 +158,7 @@ class MCPWeatherAgent:
             # 记录模型回复
             full_history.append({"role": "assistant", "content": message.content, "tool_calls": message.tool_calls})
 
+            # 如果没调用工具，则认为已解决问题，结束对话
             if not message.tool_calls:
                 print("\n**********************[最终回答]**********************")
                 print(message.content or "")

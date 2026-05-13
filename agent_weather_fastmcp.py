@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Any
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from openai import OpenAI
@@ -33,6 +34,47 @@ async def call_weather_tool_http(name: str, args: dict) -> str:
     async with client:
         result = await client.call_tool(name, args)
     return result.content[0].text if result.content else ""
+
+
+def convert_mcp_tools_to_openai_schema(tools: list[Any]) -> list[dict]:
+    # 将 MCP 工具转换为 OpenAI function calling schema 格式
+    tools_schema = []
+    for tool in tools:
+        schema = {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description or "",
+                "parameters": tool.inputSchema,
+            },
+        }
+        tools_schema.append(schema)
+    return tools_schema
+
+
+async def get_weather_tools_schema_stdio() -> list[dict]:
+    # 通过 STDIO 启动本地 weather MCP 服务器，并获取可用工具 schema
+    client = Client(str(WEATHER_SERVER_PATH))
+    async with client:
+        tools = await client.list_tools()
+    return convert_mcp_tools_to_openai_schema(tools)
+
+
+async def get_weather_tools_schema_http() -> list[dict]:
+    # 通过 Streamable HTTP 连接远程 weather MCP 服务器，并获取可用工具 schema
+    transport = StreamableHttpTransport(url=WEATHER_HTTP_ENDPOINT)
+    client = Client(transport)
+    async with client:
+        tools = await client.list_tools()
+    return convert_mcp_tools_to_openai_schema(tools)
+
+
+async def get_weather_tools_schema(transport: str) -> list[dict]:
+    if transport == "stdio":
+        return await get_weather_tools_schema_stdio()
+    if transport == "http":
+        return await get_weather_tools_schema_http()
+    raise ValueError(f"未知的transport类型: {transport}")
 
 
 def build_tools_schema() -> list[dict]:
@@ -82,7 +124,10 @@ def build_tools_schema() -> list[dict]:
 def run_agent(transport: str, user_query: str) -> None:
     # 驱动 LLM 与用户对话，自动决定何时调用 MCP 工具并整合结果
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
-    tools = build_tools_schema()
+
+    tools = asyncio.run(get_weather_tools_schema(transport))
+    # tools = build_tools_schema()
+
     tools_json = json.dumps(tools, ensure_ascii=False, indent = 4)
     print(f"\n[可供调用的工具]:\n{tools_json}")
     

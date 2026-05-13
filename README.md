@@ -42,7 +42,7 @@ npx -y @modelcontextprotocol/inspector
 ```
 .
 ├── weather.py       # 天气预报MCP服务脚本，包含经纬度天气查询和州代码天气预警查询
-├── agent_weather.py # 天气查询Agent脚本，使用方法见下一节
+├── agent_weather_fastmcp.py # 通过FastMCP构建的天气查询Agent脚本，使用方法见下一节
 ├── agent_weather_http.py # Http版天气查询Agent脚本，自动查询tool并构建schema，使用方法见下一节
 ├── agent_weather_http_res.py # 在agent_weather_http.py基础上，添加了资源读取功能，使用方法见下一节
 ├── README.md        # 说明
@@ -51,19 +51,13 @@ npx -y @modelcontextprotocol/inspector
 
 ## 使用
 
-自行配置好本地LLM。
+请先通过ollama或其他工具自行配置好本地LLM。
 
 1. 启动MCP服务（仅用于http）
 
    在项目根目录执行：`uv run weather.py http`
 
-1. 基础脚本
-
-   不要关闭上一步的服务，开启一个新终端，确保transport与上一步一致，
-   在项目根目录执行：`uv run agent_weather.py [stdio|http] "你的prompt"`，
-   例如：`uv run agent_weather.py stdio "查询纽约的天气"`
-
-1. http脚本
+1. 基础http脚本
 
    在项目根目录执行：`uv run agent_weather_http.py "你的prompt"`，
    例如：`uv run agent_weather_http.py "查询纽约的天气预警"`
@@ -72,3 +66,8 @@ npx -y @modelcontextprotocol/inspector
 
    在项目根目录执行：`uv run agent_weather_http_res.py "你的prompt"`，
    例如：`uv run agent_weather_http_res.py "帮我查询任意支持的州的天气预警"`
+
+1. FastMCP脚本（第三方框架，代码更简洁）
+
+   在项目根目录执行：`uv run agent_weather_fastmcp.py [stdio|http] "你的prompt"`，
+   例如：`uv run agent_weather_fastmcp.py stdio "查询纽约的天气"`

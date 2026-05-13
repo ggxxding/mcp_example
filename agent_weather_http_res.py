@@ -40,7 +40,7 @@ class MCPWeatherAgent:
         # 存储从 MCP 服务器动态发现并转换为 OpenAI 格式的工具 schema
         self.mcp_tools_openai_schema: list[dict] = []
 
-        self.resources = []
+        self.resources: list[dict] = []
 
     async def connect_to_mcp_server(self, server_url: str):
         """
@@ -77,17 +77,31 @@ class MCPWeatherAgent:
             self.mcp_tools_openai_schema.append(schema)
         print("工具 schema 已成功转换为 OpenAI 格式。")
 
-        # 读取resources
-        response = await self.mcp_session.list_resources()
-        for resource in response.resources:
+        ## 连接时读取 resources，并缓存完整内容供对话直接使用。
+        resources_response = await self.mcp_session.list_resources()
+        for resource in resources_response.resources:
+            resource_content = await self.mcp_session.read_resource(resource.uri)
+            contents = []
+            for content in resource_content.contents:
+                contents.append(
+                    {
+                        "type": getattr(content, "type", None),
+                        "uri": str(getattr(content, "uri", "")),
+                        "mime_type": getattr(content, "mimeType", None),
+                        "text": getattr(content, "text", None),
+                        "blob": getattr(content, "blob", None),
+                    }
+                )
             self.resources.append(
                 {
-                    "uri": resource.uri,
+                    "uri": str(resource.uri),
                     "name": resource.name,
                     "description": resource.description,
+                    "contents": contents,
                 }
             )
-        print("已读取到 resources")
+        print(f"已读取到 resources: {[resource['uri'] for resource in self.resources]}")
+
 
     async def call_mcp_tool(self, name: str, args: dict) -> str:
         """
@@ -136,9 +150,6 @@ class MCPWeatherAgent:
                 "content": f"""你是一个可以通过weather MCP工具查询天气预报和天气警报的智能助手。
                 你可以使用以下资源来帮助回答用户的问题：
                 {self.resources}
-                
-                如果你需要资源，回复:READ_RESOURCE: <uri>
-                
                 """,
             },
             {"role": "user", "content": user_query},
@@ -177,20 +188,6 @@ class MCPWeatherAgent:
             
             # 记录模型回复
             full_history.append({"role": "assistant", "content": message.content, "tool_calls": message.tool_calls})
-
-            if message.content and message.content.startswith("READ_RESOURCE"):
-                messages.append({"role": "assistant", "content": message.content})
-                resource_uri = message.content.split(":", 1)[1].strip()
-                resource = await self.mcp_session.read_resource(resource_uri)
-                if resource:
-                    full_history.append({"role": "system", "content": f"资源内容: {resource.contents[0].text}"})
-                    messages.append({"role": "system", "content": f"资源内容: {resource.contents[0].text}"})
-                else:
-                    print(f"\n[警告] 未找到 URI 为 {resource_uri} 的资源")
-                    full_history.append({"role": "system", "content": f"未找到 URI 为 {resource_uri} 的资源"})
-                    messages.append({"role": "system", "content": f"未找到 URI 为 {resource_uri} 的资源"})
-                step += 1
-                continue
 
             if message.tool_calls:
                 print("[assistant 工具调用计划]:\n")
