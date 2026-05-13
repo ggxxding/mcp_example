@@ -1,6 +1,7 @@
 # agent_weather_http.py
 # 使用本地 Ollama 模型，通过 Streamable HTTP 连接 MCP weather 服务查询天气和预警的示例 Agent
 
+from queue import Full
 import asyncio
 import json
 import sys
@@ -39,6 +40,8 @@ class MCPWeatherAgent:
         # 存储从 MCP 服务器动态发现并转换为 OpenAI 格式的工具 schema
         self.mcp_tools_openai_schema: list[dict] = []
 
+        self.resources = []
+
     async def connect_to_mcp_server(self, server_url: str):
         """
         连接到 Streamable HTTP MCP 服务器并动态发现工具。
@@ -73,6 +76,18 @@ class MCPWeatherAgent:
             }
             self.mcp_tools_openai_schema.append(schema)
         print("工具 schema 已成功转换为 OpenAI 格式。")
+
+        # 读取resources
+        response = await self.mcp_session.list_resources()
+        for resource in response.resources:
+            self.resources.append(
+                {
+                    "uri": resource.uri,
+                    "name": resource.name,
+                    "description": resource.description,
+                }
+            )
+        print("已读取到 resources")
 
     async def call_mcp_tool(self, name: str, args: dict) -> str:
         """
@@ -118,7 +133,13 @@ class MCPWeatherAgent:
         messages: list[dict] = [
             {
                 "role": "system",
-                "content": "你是一个可以通过weather MCP工具查询天气预报和天气警报的智能助手。",
+                "content": f"""你是一个可以通过weather MCP工具查询天气预报和天气警报的智能助手。
+                你可以使用以下资源来帮助回答用户的问题：
+                {self.resources}
+                
+                如果你需要资源，回复:READ_RESOURCE: <uri>
+                
+                """,
             },
             {"role": "user", "content": user_query},
         ]
@@ -136,7 +157,6 @@ class MCPWeatherAgent:
 
             messages_json = json.dumps(messages, ensure_ascii=False, indent = 4)
             print(messages_json)
-
 
             response = self.openai_client.chat.completions.create(
                 model=MODEL_NAME,
@@ -158,43 +178,58 @@ class MCPWeatherAgent:
             # 记录模型回复
             full_history.append({"role": "assistant", "content": message.content, "tool_calls": message.tool_calls})
 
-            if not message.tool_calls:
-                print("\n**********************[最终回答]**********************")
-                print(message.content or "")
-                break
+            if message.content and message.content.startswith("READ_RESOURCE"):
+                messages.append({"role": "assistant", "content": message.content})
+                resource_uri = message.content.split(":", 1)[1].strip()
+                resource = await self.mcp_session.read_resource(resource_uri)
+                if resource:
+                    full_history.append({"role": "system", "content": f"资源内容: {resource.contents[0].text}"})
+                    messages.append({"role": "system", "content": f"资源内容: {resource.contents[0].text}"})
+                else:
+                    print(f"\n[警告] 未找到 URI 为 {resource_uri} 的资源")
+                    full_history.append({"role": "system", "content": f"未找到 URI 为 {resource_uri} 的资源"})
+                    messages.append({"role": "system", "content": f"未找到 URI 为 {resource_uri} 的资源"})
+                step += 1
+                continue
 
-            print("[assistant 工具调用计划]:\n")
-            tool_messages: list[dict] = []
+            if message.tool_calls:
+                print("[assistant 工具调用计划]:\n")
+                tool_messages: list[dict] = []
 
-            for tool_call in message.tool_calls:
-                name = tool_call.function.name
-                raw_args = tool_call.function.arguments or "{}"
-                print(f"- 调用工具: {name}, 原始参数字符串: {raw_args}")
-                args = json.loads(raw_args)
-                result_text = await self.call_mcp_tool(name, args)
+                for tool_call in message.tool_calls:
+                    name = tool_call.function.name
+                    raw_args = tool_call.function.arguments or "{}"
+                    print(f"- 调用工具: {name}, 原始参数字符串: {raw_args}")
+                    args = json.loads(raw_args)
+                    result_text = await self.call_mcp_tool(name, args)
 
-                tool_msg = {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": name,
-                        "content": result_text,
+                    tool_msg = {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": name,
+                            "content": result_text,
+                        }
+                    tool_messages.append(tool_msg)
+                    # 记录工具执行结果
+                    full_history.append(tool_msg)
+
+                print("\n[实际工具调用结果已写入 tool 消息，继续下一轮对话]")
+
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [tc.model_dump() for tc in message.tool_calls],
                     }
-                tool_messages.append(tool_msg)
-                # 记录工具执行结果
-                full_history.append(tool_msg)
+                )
+                messages.extend(tool_messages)
+                step += 1
+                continue
 
-            print("\n[实际工具调用结果已写入 tool 消息，继续下一轮对话]")
+            print("\n**********************[最终回答]**********************")
+            print(message.content or "")
+            break
 
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [tc.model_dump() for tc in message.tool_calls],
-                }
-            )
-            messages.extend(tool_messages)
-
-            step += 1
         # 对话结束，导出为 Markdown
         export_to_markdown(full_history, tools_json)
 
@@ -225,6 +260,10 @@ def export_to_markdown(history: list[dict], tools_json: str) -> None:
     md_content = "# Weather Agent Chat History\n\n"
     md_content += f"**Time**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     
+    md_content += "## Available Tools\n"
+    md_content += "```json\n"
+    md_content += f"{tools_json}\n"
+    md_content += "```\n\n"
     for entry in history:
         role = entry.get("role")
         content = entry.get("content") or ""
@@ -232,10 +271,6 @@ def export_to_markdown(history: list[dict], tools_json: str) -> None:
         if role == "system":
             md_content += "## System\n"
             md_content += f"{content}\n\n"
-            md_content += "## Available Tools\n"
-            md_content += "```json\n"
-            md_content += f"{tools_json}\n"
-            md_content += "```\n\n"
         elif role == "user":
             md_content += "## User\n"
             md_content += f"{content}\n\n"

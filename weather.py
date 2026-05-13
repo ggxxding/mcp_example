@@ -3,7 +3,7 @@ from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
-
+import json
 # 基于 FastMCP 的天气 MCP 服务器，向外暴露查询预报和预警的工具
 mcp = FastMCP("weather", host = '0.0.0.0', port = 8000)
 
@@ -92,6 +92,28 @@ async def get_forecast(latitude: float, longitude: float) -> str:
 
     return "\n---\n".join(forecasts)
 
+# --- 新增：Resource 示例 ---
+SUPPORTED_STATES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+    "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire",
+    "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York", "NC": "North Carolina",
+    "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+    "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
+    "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+}
+
+@mcp.resource("mcp-weather-tool-docs://supported_states")
+def get_supported_states() -> str:
+    """返回一个JSON字符串，其中包含支持天气警报的美国州代码及其名称。"""
+    return json.dumps(SUPPORTED_STATES, indent=2)
+
+
+
 def main():
     # 从命令行读取 transport 和用户问题，运行示例 Agent
     if len(sys.argv) < 2:
@@ -100,7 +122,7 @@ def main():
     elif sys.argv[1] == "http":
         mcp.run(transport="streamable-http")
     else:
-        print("用法: uv run agent_weather.py [http]")
+        print("用法: uv run agent_weather.py http")
         sys.exit(1)
 
 if __name__ == "__main__":

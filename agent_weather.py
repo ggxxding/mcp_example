@@ -11,7 +11,7 @@ from openai import OpenAI
 
 API_KEY = "ollama"
 BASE_URL = "http://192.168.200.23:11434/v1"
-MODEL_NAME = "qwen3:30b"
+MODEL_NAME = "qwen3.5:35b"
 
 WEATHER_SERVER_PATH = Path(__file__).parent / "weather.py"
 WEATHER_HTTP_ENDPOINT = "http://127.0.0.1:8000/mcp"
