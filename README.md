@@ -31,7 +31,7 @@ uv add openai
 ```
 
 3. 安装node.js（用于运行MCP Inspector调试工具，非必须）
-   访问https://nodejs.org/zh-cn，根据页面提示下载
+   访问https://nodejs.org/zh-cn，根据页面提示下载，通过以下命令安装并启动调试工具：
 
 ```
 npx -y @modelcontextprotocol/inspector
