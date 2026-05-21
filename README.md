@@ -16,18 +16,9 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 2. 创建和设置项目：
 
 ```
-# 创建项目目录
-uv init mcp_example
+# 克隆本仓库，并进入目录
+git@github.com:ggxxding/mcp_example.git
 cd mcp_example
-
-# 创建虚拟环境并激活
-uv venv
-source .venv/bin/activate
-
-# 安装依赖
-uv add "mcp[cli]" httpx
-uv add fastmcp
-uv add openai
 ```
 
 3. 安装node.js（用于运行MCP Inspector调试工具，非必须）
