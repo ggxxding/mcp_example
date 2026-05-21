@@ -1,5 +1,5 @@
 # 使用本地 Ollama 模型，通过 MCP weather 服务查询天气和预警的示例 Agent
-# 在项目根目录执行：uv run agent_weather.py [stdio|http] "你的prompt"
+
 import asyncio
 import json
 import sys

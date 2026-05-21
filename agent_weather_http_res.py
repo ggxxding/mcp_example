@@ -1,4 +1,4 @@
-# agent_weather_http.py
+# agent_weather_http_res.py
 # 使用本地 Ollama 模型，通过 Streamable HTTP 连接 MCP weather 服务查询天气和预警的示例 Agent
 
 from queue import Full
